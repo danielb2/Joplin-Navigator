@@ -8,6 +8,11 @@ interface FolderItem {
 	icon: string;
 }
 
+interface TagItem {
+	id: string;
+	title: string;
+}
+
 interface NoteItem {
 	id: string;
 	title: string;
@@ -139,6 +144,59 @@ async function searchNotes(query: string): Promise<NoteItem[]> {
 	}
 	return notes;
 }
+async function fetchAllTags(): Promise<TagItem[]> {
+	const tagsById = new Map<string, TagItem>();
+	let page = 1;
+	while (true) {
+		const result = await joplin.data.get(['tags'], { fields: ['id', 'title'], page, limit: 100 });
+		for (const tag of result.items) tagsById.set(tag.id, tag);
+		if (!result.has_more) break;
+		page++;
+	}
+
+	// Some Joplin versions do not populate the top-level tags collection in the dev profile.
+	if (tagsById.size === 0) {
+		page = 1;
+		while (true) {
+			const result = await joplin.data.get(['notes'], { fields: ['id'], page, limit: 100 });
+			for (const note of result.items) {
+				const noteTags = await joplin.data.get(['notes', note.id, 'tags'], { fields: ['id', 'title'] });
+				for (const tag of noteTags.items) tagsById.set(tag.id, tag);
+			}
+			if (!result.has_more) break;
+			page++;
+		}
+	}
+	return Array.from(tagsById.values()).sort((a, b) => a.title.localeCompare(b.title));
+}
+
+async function fetchNotesInTag(tagId: string): Promise<NoteItem[]> {
+	const notes: NoteItem[] = [];
+	let page = 1;
+	while (true) {
+		const result = await joplin.data.get(['tags', tagId, 'notes'], {
+			fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time'], page, limit: 100,
+		});
+		notes.push(...result.items);
+		if (!result.has_more) break;
+		page++;
+	}
+	return notes;
+}
+
+async function fetchAllNotes(): Promise<NoteItem[]> {
+	const notes: NoteItem[] = [];
+	let page = 1;
+	while (true) {
+		const result = await joplin.data.get(['notes'], { fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time'], page, limit: 100 });
+		notes.push(...result.items);
+		if (!result.has_more) break;
+		page++;
+	}
+	return notes;
+}
+
+
 
 function buildFolderTree(folders: FolderItem[]): TreeNode[] {
 	const map = new Map<string, TreeNode>();
@@ -529,7 +587,7 @@ joplin.plugins.register({
 		});
 
 		await joplin.settings.registerSection('fullNotebookView', {
-			label: 'Full Notebook View',
+			label: 'Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 		});
 
@@ -680,16 +738,20 @@ joplin.plugins.register({
 		await joplin.views.panels.setHtml(panel, `
 			<div id="fnv-root">
 				<div id="fnv-tabs">
-					<button class="fnv-tab" data-tab="search">
+					<button class="fnv-tab" data-tab="search" title="Search">
 						<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.5 4.5 0 1 0-8.999.001A4.5 4.5 0 0 0 11.5 7Z"/></svg>
 					</button>
-					<button class="fnv-tab fnv-tab-active" data-tab="notebooks">
+					<button class="fnv-tab fnv-tab-active" data-tab="notebooks" title="Notebooks">
 						<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/></svg>
-						<span>Notebooks</span>
 					</button>
-					<button class="fnv-tab" data-tab="toc">
+					<button class="fnv-tab" data-tab="all-notes" title="All Notes">
+						<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M2 1.75C2 .78 2.78 0 3.75 0h6.59c.46 0 .91.18 1.24.51l2.91 2.91c.33.33.51.77.51 1.24v9.59A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75zM3.5 1.75v12.5c0 .14.11.25.25.25h9.5c.14 0 .25-.11.25-.25V6H10.75A1.75 1.75 0 0 1 9 4.25V1.5H3.75a.25.25 0 0 0-.25.25z"/></svg>
+					</button>
+					<button class="fnv-tab" data-tab="tags" title="Tags">
+						<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M1 2.5A1.5 1.5 0 0 1 2.5 1h4.879a1.5 1.5 0 0 1 1.06.44l5.121 5.12a1.5 1.5 0 0 1 0 2.122l-4.878 4.878a1.5 1.5 0 0 1-2.122 0l-5.12-5.121A1.5 1.5 0 0 1 1 7.379V2.5zM4.5 5A1.5 1.5 0 1 0 4.5 2a1.5 1.5 0 0 0 0 3z"/></svg>
+					</button>
+					<button class="fnv-tab" data-tab="toc" title="Outline">
 						<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M2 2h4v1H2V2zm0 3h4v1H2V5zm0 3h4v1H2V8zm0 3h10v1H2v-1zm6-9h6v1H8V2zm0 3h6v1H8V5zm0 3h6v1H8V8z"/></svg>
-						<span>Outline</span>
 					</button>
 				</div>
 				<div id="fnv-views">
@@ -764,6 +826,12 @@ joplin.plugins.register({
 					</div>
 					<div id="fnv-view-toc" class="fnv-view">
 						<div id="fnv-toc"></div>
+					</div>
+					<div id="fnv-view-all-notes" class="fnv-view">
+						<div id="fnv-all-notes-tree"></div>
+					</div>
+					<div id="fnv-view-tags" class="fnv-view">
+						<div id="fnv-tags-tree"></div>
 					</div>
 				</div>
 				<div id="fnv-sync-bar">
@@ -864,14 +932,18 @@ joplin.plugins.register({
 			switch (message.type) {
 				case 'init': {
 					const tree = await refreshFolderTree();
+					const tags = await fetchAllTags();
 					const selectedNote = await joplin.workspace.selectedNote();
 					const selectedFolder = await joplin.workspace.selectedFolder();
-					return {
-						tree: tree,
-						selectedNoteId: selectedNote ? selectedNote.id : null,
-						selectedFolderId: selectedFolder ? selectedFolder.id : null,
-					};
+					return { tree, tags, selectedNoteId: selectedNote ? selectedNote.id : null, selectedFolderId: selectedFolder ? selectedFolder.id : null };
 				}
+
+				case 'getAllNotes': {
+					const exclusions = await getExcludedIds();
+					const notes = (await fetchAllNotes()).filter(note => exclusions.noteIds.indexOf(note.id) === -1);
+					return { notes };
+				}
+
 
 				case 'triggerNavigateBack': {
 					await navigateBack();
@@ -916,6 +988,17 @@ joplin.plugins.register({
 						noteCount: noteCount,
 					};
 				}
+
+				case 'getTags': {
+					return { tags: await fetchAllTags() };
+				}
+
+				case 'expandTag': {
+					const exclusions = await getExcludedIds();
+					const notes = (await fetchNotesInTag(message.tagId)).filter(n => exclusions.noteIds.indexOf(n.id) === -1);
+					return { notes };
+				}
+
 
 				case 'openNote': {
 					await joplin.commands.execute('openNote', message.noteId);
@@ -1014,6 +1097,7 @@ joplin.plugins.register({
 								pathTitles.unshift(folder.title);
 								currentFolderId = folder.parent_id;
 							}
+							const lowerQuery = query.toLowerCase();
 							return {
 								id: n.id,
 								title: n.title,
@@ -1025,6 +1109,7 @@ joplin.plugins.register({
 								path: pathTitles.join(' / '),
 								body: n.body || '',
 								searchQuery: query,
+								searchRank: n.title.toLowerCase().includes(lowerQuery) ? 1 : 2,
 							};
 						});
 				}
@@ -1039,6 +1124,7 @@ joplin.plugins.register({
 							type: 'folder' as const,
 							parent_id: f.parent_id,
 							icon: f.icon,
+							searchRank: 0,
 						}));
 				}
 
@@ -1328,7 +1414,16 @@ joplin.plugins.register({
 		}
 
 		case 'deleteNote': {
+
+
 			await joplin.data.delete(['notes', message.noteId]);
+			return { success: true };
+		}
+
+		case 'toggleMarkupLanguage': {
+			const note = await joplin.data.get(['notes', message.noteId], { fields: ['markup_language'] });
+			const markupLanguage = Number(note.markup_language) === 2 ? 1 : 2;
+			await joplin.data.put(['notes', message.noteId], null, { markup_language: markupLanguage });
 			return { success: true };
 		}
 
@@ -1423,12 +1518,13 @@ joplin.plugins.register({
 	await joplin.workspace.onNoteChange(async () => {
 		await notifyNoteSelection();
 		await notifyTocUpdate();
+		await notifyTreeRefresh();
 	});
 
 		await joplin.commands.register({
 			name: 'fullNotebookView.togglePanel',
-			label: 'Toggle Full Notebook View',
-			iconName: 'fas fa-folder-tree',
+			label: 'Toggle Joplin Navigator On/Off',
+			iconName: 'fas fa-folder-open',
 			execute: async () => {
 				const isVisible = await joplin.views.panels.visible(panel);
 				await joplin.views.panels.show(panel, !isVisible);
@@ -1464,7 +1560,7 @@ joplin.plugins.register({
 
 	await joplin.commands.register({
 			name: 'fullNotebookView.revealFolder',
-			label: 'Reveal Folder in Full Notebook View',
+			label: 'Reveal Folder in Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 			execute: async (folderId: string) => {
 				try {
@@ -1482,7 +1578,7 @@ joplin.plugins.register({
 
 		await joplin.commands.register({
 			name: 'fullNotebookView.revealNote',
-			label: 'Reveal Note in Full Notebook View',
+			label: 'Reveal Note in Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 			execute: async (noteId: string) => {
 				try {

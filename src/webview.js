@@ -1,10 +1,16 @@
 var state = {
 	tree: [],
+	tags: [],
+	allNotes: [],
+	tagChildren: {},
+	expandedTags: {},
 	expandedFolders: {},
 	folderChildren: {},
+	lastRevealedNoteId: null,
 	selectedNoteId: null,
 	selectedFolderId: null,
 	sortMode: 'title-asc',
+	allNotesSortMode: 'date-desc',
 	searchQuery: '',
 	isSearchMode: false,
 	activeTab: 'notebooks',
@@ -81,6 +87,16 @@ function sortItems(items, sortMode) {
 			sorted.sort(function (a, b) { return (a.updated_time || 0) - (b.updated_time || 0); });
 			break;
 	}
+	return sorted;
+}
+
+function sortSearchResults(items) {
+	var sorted = items.slice();
+	sorted.sort(function (a, b) {
+		var rankDiff = (a.searchRank == null ? 2 : a.searchRank) - (b.searchRank == null ? 2 : b.searchRank);
+		if (rankDiff !== 0) return rankDiff;
+		return (a.title || '').localeCompare(b.title || '');
+	});
 	return sorted;
 }
 
@@ -161,7 +177,7 @@ function renderSearchResults() {
 		return;
 	}
 	
-	var sorted = sortItems(state.searchResults, state.sortMode);
+	var sorted = sortSearchResults(state.searchResults);
 	var html = '<div class="fnv-tree-container">';
 	
 	for (var i = 0; i < sorted.length; i++) {
@@ -235,6 +251,62 @@ function renderTree() {
 	container.innerHTML = html;
 	attachTreeEvents();
 }
+
+function renderTags() {
+	var container = document.getElementById('fnv-tags-tree');
+	if (!container) return;
+	var html = '';
+	var tags = sortItems(state.tags, state.sortMode);
+	for (var i = 0; i < tags.length; i++) {
+		var tag = tags[i], expanded = !!state.expandedTags[tag.id];
+		html += '<div class="fnv-tree-item fnv-folder" data-id="' + tag.id + '" data-type="tag" style="padding-left:4px">';
+		html += '<span class="fnv-chevron" data-id="' + tag.id + '">' + (expanded ? SVG_CHEVRON_DOWN : SVG_CHEVRON_RIGHT) + '</span><span class="fnv-icon">' + SVG_FOLDER + '</span><span class="fnv-title">' + escapeHtml(tag.title) + '</span></div>';
+		if (expanded && state.tagChildren[tag.id]) {
+			html += '<div class="fnv-children">';
+			for (var j = 0; j < state.tagChildren[tag.id].length; j++) html += renderNoteNode(state.tagChildren[tag.id][j], 1);
+			html += '</div>';
+		}
+	}
+	container.innerHTML = html || '<div class="fnv-empty-state">No tags found</div>';
+	var chevrons = container.querySelectorAll('.fnv-chevron');
+	for (var c = 0; c < chevrons.length; c++) chevrons[c].addEventListener('click', function (e) { e.stopPropagation(); toggleTag(e.currentTarget.getAttribute('data-id')); });
+	var tagItems = container.querySelectorAll('.fnv-folder');
+	for (var t = 0; t < tagItems.length; t++) tagItems[t].addEventListener('click', function (e) {
+		if (e.target.closest('.fnv-chevron')) return;
+		toggleTag(e.currentTarget.getAttribute('data-id'));
+	});
+	var notes = container.querySelectorAll('.fnv-note');
+	for (var n = 0; n < notes.length; n++) notes[n].addEventListener('click', handleItemClick);
+}
+
+async function toggleTag(tagId) {
+	if (state.expandedTags[tagId]) { delete state.expandedTags[tagId]; renderTags(); return; }
+	state.expandedTags[tagId] = true;
+	if (!state.tagChildren[tagId]) {
+		var result = await webviewApi.postMessage({ type: 'expandTag', tagId: tagId });
+		state.tagChildren[tagId] = (result && result.notes) || [];
+	}
+	renderTags();
+}
+
+function renderAllNotes() {
+	var container = document.getElementById('fnv-all-notes-tree');
+	if (!container) return;
+	var notes = sortItems(state.allNotes, state.allNotesSortMode);
+	container.innerHTML = notes.length ? notes.map(function (note) { return renderNoteNode(note, 0); }).join('') : '<div class="fnv-empty-state">No notes found</div>';
+	var noteItems = container.querySelectorAll('.fnv-note');
+	for (var i = 0; i < noteItems.length; i++) noteItems[i].addEventListener('click', handleItemClick);
+}
+
+async function loadAllNotes() {
+	if (state.allNotes.length === 0) {
+		var result = await webviewApi.postMessage({ type: 'getAllNotes' });
+		state.allNotes = (result && result.notes) || [];
+	}
+	renderAllNotes();
+}
+
+
 
 function extractSearchMatches(body, query) {
 	var snippets = [];
@@ -502,6 +574,7 @@ function setupToolbar() {
 	if (sortSelect) {
 		sortSelect.addEventListener('change', function (e) {
 			state.sortMode = e.target.value;
+			state.allNotesSortMode = e.target.value;
 			var searchSortSelect = document.getElementById('fnv-search-sort');
 			if (searchSortSelect) {
 				searchSortSelect.value = e.target.value;
@@ -511,6 +584,7 @@ function setupToolbar() {
 				delete state.expandedFolders[folderId];
 			});
 			renderTree();
+			if (state.activeTab === 'all-notes') renderAllNotes();
 		});
 	}
 
@@ -968,6 +1042,16 @@ function handleTabClick(e) {
 	if (tabName === state.activeTab) return;
 	switchTab(tabName);
 }
+async function loadTags() {
+	var result = await webviewApi.postMessage({ type: 'getTags' });
+	if (result && result.tags) {
+		state.tags = result.tags;
+		state.tagChildren = {};
+		state.expandedTags = {};
+		renderTags();
+	}
+}
+
 
 function switchTab(tabName) {
 	state.activeTab = tabName;
@@ -999,6 +1083,9 @@ function switchTab(tabName) {
 			renderToc();
 		}
 	}
+	if (tabName === 'tags') loadTags();
+	if (tabName === 'all-notes') loadAllNotes();
+
 }
 
 var tocDebounce = null;
@@ -1296,6 +1383,9 @@ function createContextMenu(x, y, items) {
 	}
 
 	document.body.appendChild(menu);
+	menu.addEventListener('mouseleave', function () {
+		dismissContextMenu();
+	});
 
 	var rect = menu.getBoundingClientRect();
 	var winW = window.innerWidth;
@@ -1350,6 +1440,7 @@ function showNoteContextMenu(x, y, noteId, el) {
 		{ label: 'New Notebook', action: function () { webviewApi.postMessage({ type: 'newSubNotebook', parentId: state.selectedFolderId }); } },
 		{ separator: true },
 		{ label: 'Rename', action: function () { startInlineRename(el, noteId, 'note', noteTitle); } },
+		{ label: 'Toggle Markup Language', action: function () { webviewApi.postMessage({ type: 'toggleMarkupLanguage', noteId: noteId }); } },
 		{ label: 'Create Copy', action: function () { webviewApi.postMessage({ type: 'duplicateNote', noteId: noteId }); } },
 		{ label: 'Copy Markdown Link', action: function () {
 			webviewApi.postMessage({ type: 'copyMarkdownLink', noteId: noteId, noteTitle: noteTitle }).then(function (result) {
@@ -1697,10 +1788,13 @@ webviewApi.onMessage(function (message) {
 		case 'noteSelected':
 			state.selectedNoteId = message.noteId;
 			state.selectedFolderId = message.folderId || state.selectedFolderId;
-			if (state.shouldExpandOnNextSelect && message.noteId) {
+			if (message.noteId) {
+				var shouldScrollToSelection = state.lastRevealedNoteId !== message.noteId || state.shouldExpandOnNextSelect;
+				state.lastRevealedNoteId = message.noteId;
 				state.shouldExpandOnNextSelect = false;
-				expandToNote(message.noteId, true);
-			} else if (!state.isSearchMode) {
+				if (state.activeTab !== 'notebooks') switchToTab('notebooks');
+				expandToNote(message.noteId, shouldScrollToSelection);
+			} else {
 				renderTree();
 			}
 			break;
@@ -1795,6 +1889,7 @@ async function initialize() {
 	var result = await webviewApi.postMessage({ type: 'init' });
 	if (result) {
 		state.tree = result.tree || [];
+		state.tags = result.tags || [];
 		state.selectedNoteId = result.selectedNoteId;
 		state.selectedFolderId = result.selectedFolderId;
 		renderTree();
