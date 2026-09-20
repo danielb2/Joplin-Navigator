@@ -1,7 +1,7 @@
 {
-  "name": "joplin-plugin-full-notebook-view",
+  "name": "joplin-plugin-navigator",
   "version": "1.1.0",
-  "description": "A Windows File Explorer-style notebook tree view panel for Joplin",
+  "description": "A focused navigation workspace for Joplin",
   "scripts": {
     "dist": "webpack --env joplin-plugin-config=buildMain && webpack --env joplin-plugin-config=buildExtraScripts && webpack --env joplin-plugin-config=createArchive",
     "prepare": "npm run dist",

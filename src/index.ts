@@ -587,7 +587,7 @@ joplin.plugins.register({
 		});
 
 		await joplin.settings.registerSection('fullNotebookView', {
-			label: 'Full Notebook View',
+			label: 'Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 		});
 
@@ -1523,7 +1523,7 @@ joplin.plugins.register({
 
 		await joplin.commands.register({
 			name: 'fullNotebookView.togglePanel',
-			label: 'Toggle Full Notebook View On/Off',
+			label: 'Toggle Joplin Navigator On/Off',
 			iconName: 'fas fa-folder-open',
 			execute: async () => {
 				const isVisible = await joplin.views.panels.visible(panel);
@@ -1560,7 +1560,7 @@ joplin.plugins.register({
 
 	await joplin.commands.register({
 			name: 'fullNotebookView.revealFolder',
-			label: 'Reveal Folder in Full Notebook View',
+			label: 'Reveal Folder in Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 			execute: async (folderId: string) => {
 				try {
@@ -1578,7 +1578,7 @@ joplin.plugins.register({
 
 		await joplin.commands.register({
 			name: 'fullNotebookView.revealNote',
-			label: 'Reveal Note in Full Notebook View',
+			label: 'Reveal Note in Joplin Navigator',
 			iconName: 'fas fa-folder-tree',
 			execute: async (noteId: string) => {
 				try {
