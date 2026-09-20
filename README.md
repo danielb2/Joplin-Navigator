@@ -36,11 +36,12 @@ This release exists to continue development independently and to ship improvemen
 
 ### Navigation history
 
-- Track editor cursor positions.
-- Navigate backward and forward across notes.
-- Restore exact line and column positions.
-- Use mouse side buttons or `Ctrl + Alt + Left/Right`.
-- Avoid duplicate history entries.
+The plugin records the selected note and editor cursor position every two seconds. Switching notes records a new entry immediately. The history stores up to 500 entries and suppresses repeated or minor movements.
+
+When you navigate back or forward, the plugin moves through those entries. If the target is another note, Joplin opens it, then the plugin restores the saved line and column. A new navigation after going back starts a new branch and removes the old forward entries.
+
+- Use editor toolbar buttons, mouse side buttons, or the `Navigate Back` and `Navigate Forward` commands.
+- Configure keyboard shortcuts under **Tools → Options → Keyboard Shortcuts** (for example, `Ctrl + Alt + Left/Right`).
 
 ### Note tools
 
