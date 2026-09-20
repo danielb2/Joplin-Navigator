@@ -142,7 +142,18 @@ async function searchNotes(query: string): Promise<NoteItem[]> {
 		if (!result.has_more || page >= 5) break;
 		page++;
 	}
-	return notes;
+
+	const noteId = query.trim();
+	if (noteId) {
+		try {
+			const note = await joplin.data.get(['notes', noteId], {
+				fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'body'],
+			});
+			if (note.id === noteId) notes.push(note);
+		} catch (e) {}
+	}
+
+	return Array.from(new Map(notes.map(note => [note.id, note])).values());
 }
 async function fetchAllTags(): Promise<TagItem[]> {
 	const tagsById = new Map<string, TagItem>();

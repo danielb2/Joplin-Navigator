@@ -28,7 +28,7 @@ This release exists to continue development independently and to ship improvemen
 
 ### Search and organization
 
-- Real-time search across notebooks and notes.
+- Real-time search across notebooks and notes, including exact note-ID searches.
 - Search results ordered by notebook match, note-title match, then note-body match.
 - Search history and type/date filters.
 - Sort controls for notebook and note views.
