@@ -6,12 +6,12 @@
 	"name": "Joplin Navigator",
 	"description": "A focused navigation workspace for Joplin with notebook, tag, outline, and all-notes views, search, filtering, and navigation history.",
 	"author": "rinchord",
-	"homepage_url": "https://github.com/Rinsutoringu/full_notebook_view",
-	"repository_url": "https://github.com/Rinsutoringu/full_notebook_view",
+	"homepage_url": "https://github.com/danielb2/Joplin-Navigator",
+	"repository_url": "https://github.com/danielb2/Joplin-Navigator",
 	"keywords": ["notebooks", "tags", "outline", "all-notes", "tree-view", "navigation"],
 	"categories": ["productivity", "appearance"],
 	"screenshots": [],
 	"icons": {
-		"256": "assets/icon.png"
+		"256": "icon.png"
 	}
 }
