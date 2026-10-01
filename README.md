@@ -1,7 +1,5 @@
 <div align="center">
 
-![Icon](src/icon.png)
-
 <h1>Joplin Navigator</h1>
 
 <p>A focused navigation workspace for <a href="https://joplinapp.org/">Joplin</a>.</p>
